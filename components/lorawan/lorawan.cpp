@@ -40,6 +40,16 @@ void LoRaWANComponent::set_credentials(const std::string &join_eui, const std::s
 }
 
 bool LoRaWANComponent::init_radio_() {
+  // Front-end power/enable first: a board with an external PA (Heltec V3/V4)
+  // has its RF path unpowered at reset, and every later step still "succeeds"
+  // -- begin() returns OK, uplinks report sent, and nothing ever reaches the
+  // gateway. Assert these before anything touches the radio.
+  for (int pin : this->setup_high_pins_) {
+    pinMode(pin, OUTPUT);
+    digitalWrite(pin, HIGH);
+    ESP_LOGD(TAG, "front-end pin %d driven high", pin);
+  }
+
   // Bind the Arduino SPI bus to the configured pins before RadioLib constructs
   // the Module. RadioLib otherwise defaults to arduino-esp32's VSPI pins
   // (18/19/23/5), which match almost no LoRa board's radio wiring and surface as
@@ -62,7 +72,26 @@ bool LoRaWANComponent::init_radio_() {
     this->radio_ = radio;
   } else if (this->chip_ == "sx1262") {
     auto *radio = new SX1262(mod);
-    state = radio->begin();
+    // The TCXO voltage has to go in at begin(): the SX1262 powers its
+    // oscillator from DIO3, and if that is wrong the chip never clocks and
+    // begin() fails ERR_SPI_CMD_TIMEOUT, which reads like miswired SPI.
+    // RadioLib's own default is 1.6 V, so only override when configured.
+    if (this->tcxo_voltage_ >= 0.0f) {
+      state = radio->begin(434.0, 125.0, 9, 7, RADIOLIB_SX126X_SYNC_WORD_PRIVATE, 10, 8,
+                           this->tcxo_voltage_);
+      ESP_LOGD(TAG, "sx1262 begin with tcxo %.2fV", this->tcxo_voltage_);
+    } else {
+      state = radio->begin();
+    }
+    if (state == RADIOLIB_ERR_NONE && this->dio2_as_rf_switch_) {
+      // Antenna switch driven from DIO2 rather than a GPIO. Without this the
+      // PA transmits into a switch stuck in receive.
+      int16_t rf = radio->setDio2AsRfSwitch(true);
+      if (rf != RADIOLIB_ERR_NONE) {
+        ESP_LOGE(TAG, "setDio2AsRfSwitch failed: %d", rf);
+        return false;
+      }
+    }
     this->radio_ = radio;
   } else {
     ESP_LOGE(TAG, "unknown radio chip '%s'", this->chip_.c_str());

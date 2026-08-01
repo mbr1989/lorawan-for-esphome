@@ -30,6 +30,9 @@ CONF_BUSY_PIN = "busy_pin"
 CONF_SCK_PIN = "sck_pin"
 CONF_MISO_PIN = "miso_pin"
 CONF_MOSI_PIN = "mosi_pin"
+CONF_TCXO_VOLTAGE = "tcxo_voltage"
+CONF_DIO2_AS_RF_SWITCH = "dio2_as_rf_switch"
+CONF_SETUP_HIGH = "setup_high"
 
 # RadioLib module class names, keyed by the config value. The C++ side branches
 # on this string to construct the right module.
@@ -69,6 +72,24 @@ RADIO_SCHEMA = cv.All(
             cv.Optional(CONF_SCK_PIN): pins.internal_gpio_output_pin_number,
             cv.Optional(CONF_MISO_PIN): pins.internal_gpio_input_pin_number,
             cv.Optional(CONF_MOSI_PIN): pins.internal_gpio_output_pin_number,
+            # SX1262 boards clock the radio from a TCXO the SX1262 powers
+            # itself over DIO3. RadioLib has to be told the voltage or the
+            # oscillator never starts and begin() fails ERR_SPI_CMD_TIMEOUT --
+            # which reads like miswired SPI. 0 means "crystal, not TCXO".
+            cv.Optional(CONF_TCXO_VOLTAGE): cv.All(
+                cv.float_range(min=0.0, max=3.3), cv.float_
+            ),
+            # Many SX1262 modules wire the antenna switch to DIO2 instead of a
+            # GPIO. Without this the radio transmits into a switch that never
+            # flips: the device reports sending and nothing leaves the antenna.
+            cv.Optional(CONF_DIO2_AS_RF_SWITCH, default=False): cv.boolean,
+            # Pins that must be driven high before the radio is touched --
+            # front-end module power/enable, PA mode selects. Boards with an
+            # external PA (Heltec V3/V4) are deaf until these are asserted, and
+            # the failure is silent: begin() succeeds, joins never arrive.
+            cv.Optional(CONF_SETUP_HIGH): cv.ensure_list(
+                pins.internal_gpio_output_pin_number
+            ),
         }
     ),
     cv.has_none_or_all_keys(CONF_SCK_PIN, CONF_MISO_PIN, CONF_MOSI_PIN),
@@ -116,6 +137,11 @@ async def to_code(config):
         cg.add(var.set_sck_pin(radio[CONF_SCK_PIN]))
         cg.add(var.set_miso_pin(radio[CONF_MISO_PIN]))
         cg.add(var.set_mosi_pin(radio[CONF_MOSI_PIN]))
+    if CONF_TCXO_VOLTAGE in radio:
+        cg.add(var.set_tcxo_voltage(radio[CONF_TCXO_VOLTAGE]))
+    cg.add(var.set_dio2_as_rf_switch(radio[CONF_DIO2_AS_RF_SWITCH]))
+    for pin in radio.get(CONF_SETUP_HIGH, []):
+        cg.add(var.add_setup_high_pin(pin))
     cg.add(var.set_region(config[CONF_REGION]))
     cg.add(var.set_sub_band(config[CONF_SUB_BAND]))
     cg.add(var.set_uplink_interval(config[CONF_UPLINK_INTERVAL]))
