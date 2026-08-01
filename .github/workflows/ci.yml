@@ -27,5 +27,11 @@ jobs:
           app_key: "00112233445566778899aabbccddeeff"
           EOF
 
-      - name: Compile
+      - name: Compile (SX1276)
         run: esphome compile tests/ci-compile.yaml
+
+      # Separate config because the SX1262 keys -- tcxo_voltage,
+      # dio2_as_rf_switch, setup_high -- do not exist on the SX1276 path, and
+      # every one of them fails silently on hardware if wrong.
+      - name: Compile (SX1262 + TCXO/PA)
+        run: esphome compile tests/ci-compile-sx1262.yaml
