@@ -214,7 +214,12 @@ bool LoRaWANComponent::transmit_(const uint8_t *data, size_t len, uint8_t f_port
     ESP_LOGW(TAG, "uplink failed: %d", state);
     return false;
   }
-  ESP_LOGD(TAG, "uplink sent (%u bytes, fport=%u)", (unsigned) len, f_port);
+  // The DevEUI rides along because it is the only thing that identifies this
+  // board to the network server, and nothing else emits it after boot. A
+  // fleet tool reading a window of recent serial can then ask "who is in this
+  // slot" without power-cycling the board to catch dump_config.
+  ESP_LOGD(TAG, "uplink sent (%u bytes, fport=%u) dev_eui=%016llx",
+           (unsigned) len, f_port, (unsigned long long) this->dev_eui_);
   // state is the RX window (1 or 2) when a downlink arrived, 0 when none.
   if (state > 0 && down_len > 0) {
     ESP_LOGD(TAG, "downlink fport=%u (%u bytes)%s", down_event.fPort, (unsigned) down_len,
@@ -303,6 +308,7 @@ void LoRaWANComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  pins: cs=%d rst=%d dio/irq=%d busy=%d sck=%d miso=%d mosi=%d",
                 this->cs_pin_, this->rst_pin_, this->irq_pin_, this->busy_pin_,
                 this->sck_pin_, this->miso_pin_, this->mosi_pin_);
+  ESP_LOGCONFIG(TAG, "  dev_eui: %016llx", (unsigned long long) this->dev_eui_);
   ESP_LOGCONFIG(TAG, "  device_class: %s", this->device_class_.c_str());
   ESP_LOGCONFIG(TAG, "  uplink_interval: %u ms", this->uplink_interval_ms_);
   ESP_LOGCONFIG(TAG, "  payload fields: %u", (unsigned) this->fields_.size());

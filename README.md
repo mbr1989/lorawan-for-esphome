@@ -157,7 +157,11 @@ Workflow — build, flash, and update are all **wired (USB serial)**:
 esphome run example/field-headless.yaml --device /dev/ttyUSB0
 ```
 
-Watch the serial log for `OTAA join OK` and `uplink sent`. Register the device and
+Watch the serial log for `OTAA join OK` and `uplink sent`. Both the config dump
+and every `uplink sent` line carry `dev_eui`, so a board can be asked which
+device it is without a reboot -- the DevEUI is an identifier, not a secret, and
+it is the only thing tying the board in front of you to a record on the network
+server. Register the device and
 flush its DevNonces on the server once before first join; on later re-flashes,
 write the **app region only** to preserve the NVS-stored nonces (a full erase
 resets them). Future low-power (deep sleep) and remote-update (WiFi-on-demand via
