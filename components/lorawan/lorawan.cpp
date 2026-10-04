@@ -1,4 +1,5 @@
 #include "lorawan.h"
+#include "region_policy.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
