@@ -132,7 +132,8 @@ bool LoRaWANComponent::init_radio_() {
   }
 
   const LoRaWANBand_t *band = configured_band(this->region_);
-  if (band == nullptr) {
+  if (band == nullptr)
+  {
     ESP_LOGE(TAG, "unsupported LoRaWAN region: %s", this->region_.c_str());
     return false;
   }
